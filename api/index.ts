@@ -44,7 +44,12 @@ const trpcHandler = createExpressMiddleware({
 // Route tRPC requests and strip URL prefixes cleanly
 app.use((req, res, next) => {
   try {
-    const rawUrl = req.url || "/";
+    const rawUrl =
+      (req.headers["x-matched-path"] as string) ||
+      (req.headers["x-vercel-matched-path"] as string) ||
+      req.originalUrl ||
+      req.url ||
+      "/";
 
     // If health or auth/oauth, pass to standard handlers
     if (
@@ -90,16 +95,4 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   }
 });
 
-export default async function handler(req: any, res: any) {
-  try {
-    return app(req, res);
-  } catch (err: any) {
-    console.error("[Serverless Handler Top-Level Error]:", err?.stack || err);
-    if (!res.headersSent) {
-      res.status(200).json({
-        error: "Top-level handler exception caught",
-        message: err?.message || String(err),
-      });
-    }
-  }
-}
+export default app;

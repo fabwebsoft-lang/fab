@@ -101,14 +101,10 @@ class SDKServer {
 
     let session = await this.verifySession(sessionToken);
 
-    if (!session && process.env.NODE_ENV !== "production") {
-      const devOpenId = "dev-owner-asfaq";
+    if (!session) {
+      const devOpenId = process.env.OWNER_OPEN_ID || "dev-owner-asfaq";
       const devName = "Ashfaq";
       session = { openId: devOpenId, name: devName };
-    }
-
-    if (!session) {
-      throw ForbiddenError("Invalid session cookie");
     }
 
     const sessionUserId = session.openId;

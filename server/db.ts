@@ -8,13 +8,43 @@ import { ENV } from './_core/env';
 let _pool: pg.Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
+function getNormalizedDatabaseUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    const protoIndex = rawUrl.indexOf("://");
+    if (protoIndex === -1) return rawUrl;
+    const protocol = rawUrl.substring(0, protoIndex + 3);
+    const rest = rawUrl.substring(protoIndex + 3);
+    const lastAtIndex = rest.lastIndexOf("@");
+    if (lastAtIndex === -1) return rawUrl;
+
+    const userPass = rest.substring(0, lastAtIndex);
+    const hostAndRest = rest.substring(lastAtIndex + 1);
+
+    const firstColon = userPass.indexOf(":");
+    if (firstColon === -1) return rawUrl;
+
+    const user = userPass.substring(0, firstColon);
+    const pass = userPass.substring(firstColon + 1);
+
+    const decodedPass = decodeURIComponent(pass);
+    return `${protocol}${user}:${encodeURIComponent(decodedPass)}@${hostAndRest}`;
+  } catch (e) {
+    return rawUrl;
+  }
+}
+
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const dbUrl = getNormalizedDatabaseUrl(process.env.DATABASE_URL);
+  if (!_db && dbUrl) {
     try {
       _pool = new pg.Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
       });
       _db = drizzle(_pool);
     } catch (error) {

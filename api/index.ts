@@ -12,16 +12,28 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 registerOAuthRoutes(app);
 
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-  })
-);
+const trpcMiddleware = createExpressMiddleware({
+  router: appRouter,
+  createContext,
+  onError({ error, path }) {
+    console.error(`[tRPC Serverless Error] path='${path}':`, error);
+  },
+});
+
+app.use("/api/trpc", trpcMiddleware);
+app.use("/trpc", trpcMiddleware);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error("[Serverless Function Error]:", err);
+  res.status(err.status || 500).json({ error: err.message || "Internal Server Error" });
 });
 
 export default app;

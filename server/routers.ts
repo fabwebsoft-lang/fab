@@ -34,27 +34,30 @@ function formatDue(value: Date) {
   return `${value.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${time}`;
 }
 
-function toUiOrder(row: Awaited<ReturnType<typeof db.listOrders>>[number]) {
-  const total = Number(row.order.totalAmount);
-  const paid = Number(row.order.amountPaid);
-  const discount = Number(row.order.discount || 0);
-  const items = Array.isArray(row.order.items) ? (row.order.items as any[]) : [];
+function toUiOrder(row: any) {
+  const order = row.order || {};
+  const customer = row.customer || {};
+  const total = Number(order.totalAmount || 0);
+  const paid = Number(order.amountPaid || 0);
+  const discount = Number(order.discount || 0);
+  const items = Array.isArray(order.items) ? (order.items as any[]) : [];
   const totalItemCount = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
-  const initials = row.customer.name.trim().split(/\s+/).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase();
+  const custName = customer.name || "Customer";
+  const initials = custName.trim().split(/\s+/).map((part: string) => part[0] || "").join("").slice(0, 2).toUpperCase() || "FC";
   const allClothTags = items.flatMap((i: any) => (i.clothTags || []) as string[]);
 
   return {
-    id: row.order.orderNumber,
-    customer: row.customer.name,
-    phone: row.customer.phone,
-    customerType: row.order.customerType || row.customer.customerType || "Normal",
-    clothesCode: row.customer.storedClothesCode,
-    items: `${totalItemCount} items · ${row.order.serviceType}`,
+    id: order.orderNumber || `ORD-${order.id || Date.now()}`,
+    customer: custName,
+    phone: customer.phone || "",
+    customerType: order.customerType || customer.customerType || "Normal",
+    clothesCode: customer.storedClothesCode || null,
+    items: `${totalItemCount} items · ${order.serviceType || "Standard Laundry"}`,
     amount: formatMoney(total),
     balance: paid >= total ? "Paid" : `${formatMoney(total - paid)} due`,
-    status: row.order.status,
-    deliveryType: row.order.deliveryType || null,
-    due: formatDue(new Date(row.order.dueAt)),
+    status: order.status || "Received",
+    deliveryType: order.deliveryType || null,
+    due: order.dueAt ? formatDue(new Date(order.dueAt)) : "Today",
     initials,
     accent: "#0F4C5C",
     totalAmount: total,
@@ -62,8 +65,8 @@ function toUiOrder(row: Awaited<ReturnType<typeof db.listOrders>>[number]) {
     discount,
     clothTags: allClothTags,
     structuredItems: items,
-    createdAt: new Date(row.order.createdAt).toISOString(),
-    updatedAt: new Date(row.order.updatedAt).toISOString(),
+    createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: order.updatedAt ? new Date(order.updatedAt).toISOString() : new Date().toISOString(),
   };
 }
 

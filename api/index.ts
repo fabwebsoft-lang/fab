@@ -5,7 +5,6 @@ import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
 import { registerOAuthRoutes } from "../server/_core/oauth";
 
-// Global process error listeners for serverless stability
 process.on("unhandledRejection", (reason: any) => {
   console.error("[Serverless Unhandled Rejection]:", reason?.stack || reason);
 });
@@ -19,7 +18,6 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Health Check Endpoints
 app.all(["/api/health", "/health"], (_req, res) => {
   res.status(200).json({
     status: "ok",
@@ -29,70 +27,28 @@ app.all(["/api/health", "/health"], (_req, res) => {
   });
 });
 
-// OAuth and Dev Login Routes
 registerOAuthRoutes(app);
 
-// tRPC Express Middleware
-const trpcHandler = createExpressMiddleware({
-  router: appRouter,
-  createContext,
-  onError({ error, path }) {
-    console.error(`[tRPC Serverless Error] path='${path}':`, error?.stack || error?.message || error);
-  },
-});
+app.use(
+  "/api/trpc",
+  createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    onError({ error, path }) {
+      console.error(`[tRPC Notice] path='${path}':`, error?.stack || error?.message || error);
+    },
+  })
+);
 
-// Route tRPC requests and strip URL prefixes cleanly
-app.use((req, res, next) => {
-  try {
-    const rawUrl =
-      (req.headers["x-matched-path"] as string) ||
-      (req.headers["x-vercel-matched-path"] as string) ||
-      req.originalUrl ||
-      req.url ||
-      "/";
-
-    // If health or auth/oauth, pass to standard handlers
-    if (
-      rawUrl.startsWith("/api/health") ||
-      rawUrl.startsWith("/health") ||
-      rawUrl.startsWith("/api/oauth") ||
-      rawUrl.startsWith("/oauth") ||
-      rawUrl.startsWith("/api/auth") ||
-      rawUrl.startsWith("/auth")
-    ) {
-      return next();
-    }
-
-    // Normalize tRPC path for Express createExpressMiddleware
-    let trpcUrl = rawUrl;
-    if (trpcUrl.startsWith("/api/trpc")) {
-      trpcUrl = trpcUrl.substring("/api/trpc".length);
-    } else if (trpcUrl.startsWith("/trpc")) {
-      trpcUrl = trpcUrl.substring("/trpc".length);
-    }
-
-    if (!trpcUrl.startsWith("/")) {
-      trpcUrl = "/" + trpcUrl;
-    }
-
-    req.url = trpcUrl;
-    return trpcHandler(req, res, next);
-  } catch (err: any) {
-    console.error("[tRPC Route Middleware Exception]:", err?.stack || err);
-    return next(err);
-  }
-});
-
-// Catch-All Error Handler to guarantee clean response instead of FUNCTION_INVOCATION_FAILED
-app.use((err: any, _req: any, res: any, _next: any) => {
-  console.error("[Serverless Catch-All Error]:", err?.stack || err?.message || err);
-  if (!res.headersSent) {
-    res.status(200).json({
-      error: err?.message || "Internal Exception Handled",
-      status: "handled",
-      stack: process.env.NODE_ENV !== "production" ? err?.stack : undefined,
-    });
-  }
-});
+app.use(
+  "/trpc",
+  createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    onError({ error, path }) {
+      console.error(`[tRPC Notice] path='${path}':`, error?.stack || error?.message || error);
+    },
+  })
+);
 
 export default app;

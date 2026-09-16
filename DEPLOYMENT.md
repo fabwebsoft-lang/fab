@@ -13,10 +13,10 @@ FabricCare is a mobile-first laundry and dry-cleaning shop operations applicatio
 
 | Variable | Value | Description |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgresql://postgres.nfcqtqoeqtuunnoxrrdr:FABWEBSOFt%40123@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres` | Supabase Postgres URI |
-| `SUPABASE_URL` | `https://nfcqtqoeqtuunnoxrrdr.supabase.co` | Supabase Project URL |
+| `DATABASE_URL` | `postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` | Supabase Postgres URI (Transaction Pooler) |
+| `SUPABASE_URL` | `https://[PROJECT-REF].supabase.co` | Supabase Project URL |
 | `NODE_ENV` | `production` | Production environment |
-| `JWT_SECRET` | *(Random 32+ character string)* | Session signing key |
+| `JWT_SECRET` | *(Random 32+ character secret string)* | Session signing key |
 
 5. Click **"Deploy"**. Vercel will build the frontend assets and automatically host the backend via Serverless Functions at `/api/*`.
 

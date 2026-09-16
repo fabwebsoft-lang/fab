@@ -26,6 +26,9 @@ class SDKServer {
   }
 
   private getSessionSecret() {
+    if (!ENV.cookieSecret && process.env.NODE_ENV === "production") {
+      console.warn("[Security Warning] JWT_SECRET is not set in environment. Please configure JWT_SECRET in Vercel settings.");
+    }
     const secret = ENV.cookieSecret || "fabric-care-secret-key-min-32-chars-long";
     return new TextEncoder().encode(secret);
   }

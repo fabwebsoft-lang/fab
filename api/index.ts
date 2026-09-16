@@ -5,6 +5,15 @@ import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
 import { registerOAuthRoutes } from "../server/_core/oauth";
 
+// Global process error listeners for serverless stability
+process.on("unhandledRejection", (reason: any) => {
+  console.error("[Serverless Unhandled Rejection]:", reason?.stack || reason);
+});
+
+process.on("uncaughtException", (error: any) => {
+  console.error("[Serverless Uncaught Exception]:", error?.stack || error);
+});
+
 const app = express();
 
 app.use(express.json({ limit: "50mb" }));
@@ -12,7 +21,12 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Health Check Endpoints
 app.all(["/api/health", "/health"], (_req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  res.status(200).json({
+    status: "ok",
+    environment: process.env.NODE_ENV || "production",
+    hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // OAuth and Dev Login Routes
@@ -23,53 +37,69 @@ const trpcHandler = createExpressMiddleware({
   router: appRouter,
   createContext,
   onError({ error, path }) {
-    console.warn(`[tRPC Serverless Notice] path='${path}':`, error?.message || error);
+    console.error(`[tRPC Serverless Error] path='${path}':`, error?.stack || error?.message || error);
   },
 });
 
 // Route tRPC requests and strip URL prefixes cleanly
 app.use((req, res, next) => {
-  const rawUrl = req.url || "/";
+  try {
+    const rawUrl = req.url || "/";
 
-  // If health or auth/oauth, pass to standard handlers
-  if (
-    rawUrl.startsWith("/api/health") ||
-    rawUrl.startsWith("/health") ||
-    rawUrl.startsWith("/api/oauth") ||
-    rawUrl.startsWith("/oauth") ||
-    rawUrl.startsWith("/api/auth") ||
-    rawUrl.startsWith("/auth")
-  ) {
-    return next();
+    // If health or auth/oauth, pass to standard handlers
+    if (
+      rawUrl.startsWith("/api/health") ||
+      rawUrl.startsWith("/health") ||
+      rawUrl.startsWith("/api/oauth") ||
+      rawUrl.startsWith("/oauth") ||
+      rawUrl.startsWith("/api/auth") ||
+      rawUrl.startsWith("/auth")
+    ) {
+      return next();
+    }
+
+    // Normalize tRPC path for Express createExpressMiddleware
+    let trpcUrl = rawUrl;
+    if (trpcUrl.startsWith("/api/trpc")) {
+      trpcUrl = trpcUrl.substring("/api/trpc".length);
+    } else if (trpcUrl.startsWith("/trpc")) {
+      trpcUrl = trpcUrl.substring("/trpc".length);
+    }
+
+    if (!trpcUrl.startsWith("/")) {
+      trpcUrl = "/" + trpcUrl;
+    }
+
+    req.url = trpcUrl;
+    return trpcHandler(req, res, next);
+  } catch (err: any) {
+    console.error("[tRPC Route Middleware Exception]:", err?.stack || err);
+    return next(err);
   }
-
-  // Normalize tRPC path for Express createExpressMiddleware
-  let trpcUrl = rawUrl;
-  if (trpcUrl.startsWith("/api/trpc")) {
-    trpcUrl = trpcUrl.substring("/api/trpc".length);
-  } else if (trpcUrl.startsWith("/trpc")) {
-    trpcUrl = trpcUrl.substring("/trpc".length);
-  }
-
-  if (!trpcUrl.startsWith("/")) {
-    trpcUrl = "/" + trpcUrl;
-  }
-
-  req.url = trpcUrl;
-  return trpcHandler(req, res, next);
 });
 
-// Catch-All Handler to guarantee 200 response
+// Catch-All Error Handler to guarantee clean response instead of FUNCTION_INVOCATION_FAILED
 app.use((err: any, _req: any, res: any, _next: any) => {
-  console.warn("[Serverless Handler Catch-All]:", err?.message || err);
+  console.error("[Serverless Catch-All Error]:", err?.stack || err?.message || err);
   if (!res.headersSent) {
     res.status(200).json({
-      error: err?.message || "Processed with fallback",
+      error: err?.message || "Internal Exception Handled",
       status: "handled",
+      stack: process.env.NODE_ENV !== "production" ? err?.stack : undefined,
     });
   }
 });
 
-export default function handler(req: any, res: any) {
-  return app(req, res);
+export default async function handler(req: any, res: any) {
+  try {
+    return app(req, res);
+  } catch (err: any) {
+    console.error("[Serverless Handler Top-Level Error]:", err?.stack || err);
+    if (!res.headersSent) {
+      res.status(200).json({
+        error: "Top-level handler exception caught",
+        message: err?.message || String(err),
+      });
+    }
+  }
 }

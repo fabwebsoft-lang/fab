@@ -15,6 +15,19 @@ process.on("uncaughtException", (error: any) => {
 
 const app = express();
 
+// Restore original path from Vercel header if rewritten
+app.use((req, _res, next) => {
+  const matchedPath =
+    (req.headers["x-matched-path"] as string) ||
+    (req.headers["x-vercel-matched-path"] as string) ||
+    (req.headers["x-now-route-matches"] ? (req.url as string) : "");
+
+  if (matchedPath && matchedPath.startsWith("/")) {
+    req.url = matchedPath;
+  }
+  next();
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 

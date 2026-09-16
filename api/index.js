@@ -59987,6 +59987,13 @@ process.on("uncaughtException", (error46) => {
   console.error("[Serverless Uncaught Exception]:", error46?.stack || error46);
 });
 var app = (0, import_express.default)();
+app.use((req, _res, next) => {
+  const matchedPath = req.headers["x-matched-path"] || req.headers["x-vercel-matched-path"] || (req.headers["x-now-route-matches"] ? req.url : "");
+  if (matchedPath && matchedPath.startsWith("/")) {
+    req.url = matchedPath;
+  }
+  next();
+});
 app.use(import_express.default.json({ limit: "50mb" }));
 app.use(import_express.default.urlencoded({ limit: "50mb", extended: true }));
 app.all(["/api/health", "/health"], (_req, res) => {

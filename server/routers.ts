@@ -411,8 +411,8 @@ export const appRouter = router({
     businessStatements: protectedProcedure.input(z.object({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
-    })).query(async ({ ctx, input }) => {
-      return db.getBusinessStatements(await getShopId(ctx.user), input.startDate, input.endDate);
+    }).optional()).query(async ({ ctx, input }) => {
+      return db.getBusinessStatements(await getShopId(ctx.user), input?.startDate, input?.endDate);
     }),
   }),
 
